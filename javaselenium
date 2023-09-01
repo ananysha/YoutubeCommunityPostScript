@@ -1,0 +1,97 @@
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import java.io.FileOutputStream;
+import java.util.Scanner;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
+
+public class YouTubeCommentScraper {
+    public static void main(String[] args) throws Exception {
+        Scanner sc = new Scanner(System.in);
+        
+        System.out.print("Please enter the URL of the YouTube community post you want to scrape: ");
+        String url = sc.nextLine();
+        
+        System.out.print("Enter 1 for Word or 2 for Excel: ");
+        String outputFormat = sc.nextLine();
+        
+        WebDriverManager.chromedriver().setup();  
+        WebDriver driver = new ChromeDriver();
+        driver.get(url);
+        driver.manage().window().maximize();
+        
+        HashSet<String> uniqueComments = new HashSet<>();
+        ArrayList<String> commentsList = new ArrayList<>();
+        
+        while (true) {
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, document.body.scrollHeight);");
+            Thread.sleep(5000);
+            
+            List<WebElement> commentElements = driver.findElements(By.xpath("//*[@id='comment-content']"));
+            int newCommentsCount = 0;
+            
+            for (WebElement commentElement : commentElements) {
+                String commentText = commentElement.getText();
+                if (uniqueComments.add(commentText)) {
+                    commentsList.add(commentText);
+                    newCommentsCount++;
+                }
+            }
+            
+            System.out.printf("\rFetched %d unique comments so far.", uniqueComments.size());
+            
+            if (newCommentsCount == 0) {
+                System.out.println("\nNo new comments found. Stopping.");
+                break;
+            }
+        }
+
+        if ("1".equals(outputFormat)) {
+            XWPFDocument document = new XWPFDocument();
+            XWPFParagraph title = document.createParagraph();
+            XWPFRun run = title.createRun();
+            run.setText("Fetched Details:");
+            
+            for (String comment : commentsList) {
+                XWPFParagraph paragraph = document.createParagraph();
+                run = paragraph.createRun();
+                run.setText(comment);
+            }
+
+            FileOutputStream out = new FileOutputStream("all_scraped_details.docx");
+            document.write(out);
+            out.close();
+            System.out.println("Word document created successfully!");
+
+        } else if ("2".equals(outputFormat)) {
+            Workbook workbook = new XSSFWorkbook();
+            Sheet sheet = workbook.createSheet("Comments");
+            int rowNum = 0;
+            
+            for (String comment : commentsList) {
+                Row row = sheet.createRow(rowNum++);
+                Cell cell = row.createCell(0);
+                cell.setCellValue(comment);
+            }
+
+            FileOutputStream out = new FileOutputStream("all_scraped_details.xlsx");
+            workbook.write(out);
+            out.close();
+            System.out.println("Excel file created successfully!");
+        }
+
+        driver.quit();
+        sc.close();
+    }
+}
